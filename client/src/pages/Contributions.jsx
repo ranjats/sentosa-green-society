@@ -8,6 +8,8 @@ export default function Contributions() {
   const [filters, setFilters] = useState({ month: '', search: '' });
   const [showAddForm, setShowAddForm] = useState(false);
   const [addForm, setAddForm] = useState({ month: '', amount: 0, payment_date: '' });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
@@ -16,29 +18,53 @@ export default function Contributions() {
   }, []);
 
   const fetchContributions = async () => {
-    const params = new URLSearchParams();
-    if (filters.month) params.append('month', filters.month);
-    if (filters.search) params.append('search', filters.search);
-    const data = await contributionsAPI.getAll(params.toString());
-    setContributions(data);
+    try {
+      setLoading(true);
+      setError('');
+      const params = new URLSearchParams();
+      if (filters.month) params.append('month', filters.month);
+      if (filters.search) params.append('search', filters.search);
+      const data = await contributionsAPI.getAll(params.toString());
+      setContributions(data);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to load contributions. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    await contributionsAPI.addForMonth(addForm.month, addForm.amount, addForm.payment_date);
-    setShowAddForm(false);
-    setAddForm({ month: '', amount: 0, payment_date: '' });
-    fetchContributions();
+    try {
+      await contributionsAPI.addForMonth(addForm.month, addForm.amount, addForm.payment_date);
+      setShowAddForm(false);
+      setAddForm({ month: '', amount: 0, payment_date: '' });
+      fetchContributions();
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.error || 'Failed to submit contribution');
+    }
   };
 
   const handleApprove = async (id) => {
-    await contributionsAPI.approve(id, {});
-    fetchContributions();
+    try {
+      await contributionsAPI.approve(id, {});
+      fetchContributions();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to approve contribution');
+    }
   };
 
   const handleReject = async (id) => {
-    await contributionsAPI.reject(id, {});
-    fetchContributions();
+    try {
+      await contributionsAPI.reject(id, {});
+      fetchContributions();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to reject contribution');
+    }
   };
 
   const totalAmount = contributions
@@ -158,6 +184,13 @@ export default function Contributions() {
         </div>
       </div>
 
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+          {error}
+          <button onClick={fetchContributions} className="ml-4 underline">Retry</button>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-50">
@@ -172,43 +205,57 @@ export default function Contributions() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {contributions.map((contribution) => (
-              <tr key={contribution.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                  {contribution.month}
-                  {contribution.month === new Date().toISOString().slice(0, 7) && (
-                    <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">Current</span>
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                  {contribution.payment_date || '-'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{contribution.house_no}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{contribution.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                  ₹{contribution.amount?.toFixed(2) || '0.00'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusBadge(contribution.status)}`}>
-                    {contribution.status}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  {isAdmin && contribution.status === 'pending' ? (
-                    <div className="flex gap-2">
-                      <button onClick={() => handleApprove(contribution.id)} className="text-green-600 hover:text-green-800">
-                        <CheckCircle size={20} />
-                      </button>
-                      <button onClick={() => handleReject(contribution.id)} className="text-red-600 hover:text-red-800">
-                        <XCircle size={20} />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-gray-400 text-xs">Read-only</span>
-                  )}
+            {loading ? (
+              <tr>
+                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                  Loading contributions...
                 </td>
               </tr>
-            ))}
+            ) : contributions.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                  No contributions found. {!isAdmin && 'Add your first contribution above.'}
+                </td>
+              </tr>
+            ) : (
+              contributions.map((contribution) => (
+                <tr key={contribution.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    {contribution.month}
+                    {contribution.month === new Date().toISOString().slice(0, 7) && (
+                      <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">Current</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    {contribution.payment_date || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{contribution.house_no}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{contribution.name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    ₹{contribution.amount?.toFixed(2) || '0.00'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusBadge(contribution.status)}`}>
+                      {contribution.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {isAdmin && contribution.status === 'pending' ? (
+                      <div className="flex gap-2">
+                        <button onClick={() => handleApprove(contribution.id)} className="text-green-600 hover:text-green-800">
+                          <CheckCircle size={20} />
+                        </button>
+                        <button onClick={() => handleReject(contribution.id)} className="text-red-600 hover:text-red-800">
+                          <XCircle size={20} />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 text-xs">Read-only</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            )}
           </tbody>
         </table>
       </div>
