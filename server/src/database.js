@@ -38,7 +38,6 @@ class DatabaseManager {
       throw err;
     }
   }
-  }
 
   connectSQLite() {
     const dbDir = path.join(process.cwd(), 'data');
