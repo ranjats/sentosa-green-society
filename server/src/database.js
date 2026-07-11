@@ -156,9 +156,9 @@ class DatabaseManager {
     if (this.isPostgres) {
       const convertedSql = this.convertToPostgresSql(sql);
       return {
-        run: (...params) => Promise.resolve(this.pool.query(convertedSql, params.length === 1 ? params[0] : params)),
-        get: (...params) => Promise.resolve(this.pool.query(convertedSql, params.length === 1 ? params[0] : params)).then(res => res.rows[0]),
-        all: (...params) => Promise.resolve(this.pool.query(convertedSql, params.length === 1 ? params[0] : params)).then(res => res.rows),
+        run: (...params) => Promise.resolve(this.pool.query(convertedSql, this.normalizeParams(params))),
+        get: (...params) => Promise.resolve(this.pool.query(convertedSql, this.normalizeParams(params))).then(res => res.rows[0]),
+        all: (...params) => Promise.resolve(this.pool.query(convertedSql, this.normalizeParams(params))).then(res => res.rows),
       };
     } else {
       const stmt = this.db.prepare(sql);
@@ -168,6 +168,12 @@ class DatabaseManager {
         all: (...params) => Promise.resolve(stmt.all(...params)),
       };
     }
+  }
+
+  normalizeParams(params) {
+    if (!params || params.length === 0) return [];
+    if (params.length === 1 && Array.isArray(params[0])) return params[0];
+    return params;
   }
 
   exec(sql) {
