@@ -32,11 +32,12 @@ class DatabaseManager {
     try {
       await this.pool.query('SELECT NOW()');
       console.log('PostgreSQL connection verified');
-      this.createTables();
+      await this.createTables();
     } catch (err) {
       console.error('PostgreSQL connection failed:', err);
       throw err;
     }
+  }
   }
 
   connectSQLite() {
@@ -53,7 +54,7 @@ class DatabaseManager {
     this.createTables();
   }
 
-  createTables() {
+  async createTables() {
     const queries = [
       `CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -75,8 +76,7 @@ class DatabaseManager {
         location VARCHAR(255),
         status VARCHAR(20) DEFAULT 'open',
         created_by INTEGER,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (created_by) REFERENCES users(id)
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE IF NOT EXISTS event_participants (
         id SERIAL PRIMARY KEY,
@@ -87,8 +87,6 @@ class DatabaseManager {
         female_count INTEGER DEFAULT 0,
         children_count INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (event_id) REFERENCES events(id),
-        FOREIGN KEY (user_id) REFERENCES users(id),
         UNIQUE(event_id, user_id)
       )`,
       `CREATE TABLE IF NOT EXISTS contributions (
@@ -100,8 +98,7 @@ class DatabaseManager {
         status VARCHAR(20) DEFAULT 'pending',
         payment_date DATE,
         admin_notes TEXT,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id)
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE IF NOT EXISTS amenities (
         id SERIAL PRIMARY KEY,
@@ -122,9 +119,7 @@ class DatabaseManager {
         return_status VARCHAR(20) DEFAULT 'none',
         admin_notes TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (amenity_id) REFERENCES amenities(id),
-        FOREIGN KEY (user_id) REFERENCES users(id)
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE IF NOT EXISTS event_contributions (
         id SERIAL PRIMARY KEY,
@@ -134,21 +129,28 @@ class DatabaseManager {
         status VARCHAR(20) DEFAULT 'pending',
         payment_date DATE,
         admin_notes TEXT,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (event_id) REFERENCES events(id),
-        FOREIGN KEY (user_id) REFERENCES users(id)
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
     ];
 
     if (this.isPostgres) {
-      queries.forEach(query => {
-        this.pool.query(query).catch(err => console.error('Table creation error:', err));
-      });
+      for (const query of queries) {
+        try {
+          await this.pool.query(query);
+        } catch (err) {
+          console.error('Table creation error:', err.message);
+        }
+      }
     } else {
       queries.forEach(query => {
         this.db.exec(query);
       });
     }
+  }
+
+  convertToPostgresSql(sql) {
+    let index = 1;
+    return sql.replace(/\?/g, () => `$${index++}`);
   }
 
   prepare(sql, params) {
