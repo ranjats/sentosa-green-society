@@ -254,7 +254,7 @@ export default function Contributions() {
                     )}
                   </td>
                 </tr>
-              ))}
+              )))}
             )}
           </tbody>
         </table>
